@@ -1,0 +1,55 @@
+.main {
+  max-width: 780px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6);
+}
+
+.hero {
+  margin-bottom: var(--space-12);
+}
+
+.eyebrow {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--accent);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: 34px;
+  line-height: 1.25;
+  font-weight: 700;
+  margin: 0 0 var(--space-3) 0;
+  max-width: 18ch;
+}
+
+.subtitle {
+  font-size: 15px;
+  color: var(--text-secondary);
+  max-width: 58ch;
+  margin: 0 0 var(--space-6) 0;
+}
+
+.inputWrap {
+  max-width: 560px;
+}
+
+.errorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.errorIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.empty {
+  color: var(--text-muted);
+  font-size: 13px;
+}

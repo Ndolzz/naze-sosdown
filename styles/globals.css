@@ -1,0 +1,95 @@
+/*
+  Token desain naze-sosdown
+  Palet: dark professional dengan aksen amber, terinspirasi layar terminal lama
+  Tipografi: Manrope untuk teks antarmuka, JetBrains Mono untuk data teknis
+*/
+
+:root {
+  /* Warna dasar */
+  --bg-base: #0a0e14;
+  --bg-raised: #11161f;
+  --bg-raised-alt: #161d29;
+  --border-subtle: #232b38;
+  --border-strong: #303a4a;
+
+  /* Teks */
+  --text-primary: #e6e9ef;
+  --text-secondary: #9aa4b8;
+  --text-muted: #5c6577;
+
+  /* Aksen */
+  --accent: #e8a33d;
+  --accent-strong: #f5b84e;
+  --accent-soft: rgba(232, 163, 61, 0.12);
+  --success: #4fbf8b;
+  --success-soft: rgba(79, 191, 139, 0.12);
+  --danger: #e2645b;
+  --danger-soft: rgba(226, 101, 91, 0.12);
+
+  /* Tipografi */
+  --font-sans: var(--font-manrope), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, monospace;
+
+  /* Bentuk */
+  --radius-card: 14px;
+  --radius-control: 8px;
+  --radius-chip: 999px;
+
+  /* Jarak */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+button {
+  font-family: inherit;
+}
+
+::selection {
+  background: var(--accent-soft);
+  color: var(--text-primary);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+  letter-spacing: 0.01em;
+}
+
+/* Susunan bento untuk daftar hasil */
+.bentoGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-4);
+}
