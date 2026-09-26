@@ -3,15 +3,28 @@ import type { ResolverResult, ResolvedMediaItem } from "./types";
 /*
   Resolver TikTok
 
-  Sumber data diambil dari endpoint internal yang dipakai oleh halaman web
-  TikTok sendiri (bukan API resmi berbayar). Struktur endpoint dan bentuk
-  JSON di bawah ini dapat berubah sewaktu waktu mengikuti perubahan pada
-  sisi TikTok, sebagaimana sudah dicatat sebagai risiko pada spec.md bagian 7.
-  Titik yang paling rawan berubah ditandai dengan komentar PERAWATAN di bawah.
+  Pendekatan utama: mengambil halaman web video/foto TikTok lalu membaca blok
+  JSON __UNIVERSAL_DATA_FOR_REHYDRATION__ yang disisipkan TikTok di dalam
+  HTML halamannya sendiri. Blok ini dipakai oleh aplikasi web TikTok untuk
+  menghidrasikan konten, sehingga strukturnya jauh lebih stabil dibanding
+  endpoint internal /api/item/detail/ yang memerlukan signature dan cookie.
+  Struktur ini tetap bisa berubah sewaktu-waktu sebagaimana dicatat pada
+  spec.md bagian 7. Titik yang paling rawan berubah ditandai dengan
+  komentar PERAWATAN di bawah.
 */
 
-const DESKTOP_USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+const BROWSER_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  "Accept":
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+  "Referer": "https://www.tiktok.com/",
+  "Sec-Fetch-Dest": "document",
+  "Sec-Fetch-Mode": "navigate",
+  "Sec-Fetch-Site": "same-origin",
+  "Upgrade-Insecure-Requests": "1",
+};
 
 const SHORT_LINK_HOST_PATTERN = /(^|\.)(vt|vm)\.tiktok\.com$/i;
 
@@ -24,7 +37,7 @@ async function expandShortLink(rawUrl: string): Promise<string> {
   const response = await fetch(rawUrl, {
     method: "GET",
     redirect: "follow",
-    headers: { "User-Agent": DESKTOP_USER_AGENT },
+    headers: BROWSER_HEADERS,
   });
 
   return response.url || rawUrl;
@@ -40,26 +53,40 @@ function extractItemId(canonicalUrl: string): string | null {
   return null;
 }
 
-// PERAWATAN: path endpoint ini mengikuti struktur yang dipakai halaman web
-// TikTok saat dokumen ini ditulis. Jika resolver mulai gagal secara luas,
-// langkah pertama debugging adalah memeriksa apakah path atau parameter
-// query di bawah ini masih dipakai oleh tiktok.com.
-async function fetchItemDetail(itemId: string): Promise<any> {
-  const endpoint = `https://www.tiktok.com/api/item/detail/?itemId=${itemId}&aid=1988&app_name=tiktok_web&device_platform=web_pc`;
-
-  const response = await fetch(endpoint, {
-    headers: {
-      "User-Agent": DESKTOP_USER_AGENT,
-      Referer: "https://www.tiktok.com/",
-      Accept: "application/json, text/plain, */*",
-    },
+async function fetchPageHtml(canonicalUrl: string): Promise<string> {
+  const response = await fetch(canonicalUrl, {
+    headers: BROWSER_HEADERS,
+    redirect: "follow",
   });
 
   if (!response.ok) {
-    throw new Error(`item detail request failed with status ${response.status}`);
+    throw new Error(`page request failed with status ${response.status}`);
   }
 
-  return response.json();
+  return response.text();
+}
+
+// PERAWATAN: blok data rehidrasi ini dibaca berdasarkan id script-nya.
+// Jika resolver mulai gagal secara luas, periksa apakah TikTok masih
+// menyisipkan script id="__UNIVERSAL_DATA_FOR_REHYDRATION__" pada HTML.
+function parseRehydrationData(html: string): any | null {
+  const pattern =
+    /<script id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/;
+  const match = html.match(pattern);
+  if (!match) return null;
+
+  try {
+    return JSON.parse(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+function extractItemStruct(universalData: any): any | null {
+  // PERAWATAN: jalur key di bawah ini mengikuti struktur webapp TikTok
+  // saat dokumen ini ditulis.
+  const detail = universalData?.__DEFAULT_SCOPE__?.["webapp.video-detail"];
+  return detail?.itemInfo?.itemStruct ?? null;
 }
 
 function buildVideoItems(itemStruct: any): ResolvedMediaItem[] {
@@ -138,20 +165,22 @@ export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
     };
   }
 
-  let detail: any;
+  let html: string;
   try {
-    detail = await fetchItemDetail(itemId);
+    html = await fetchPageHtml(canonicalUrl);
   } catch {
     return {
       ok: false,
       error: {
         code: "parse_failed",
-        message: "Gagal mengambil data dari TikTok. Struktur sumber kemungkinan berubah.",
+        message: "Gagal mengambil halaman TikTok. Struktur sumber kemungkinan berubah.",
       },
     };
   }
 
-  const itemStruct = detail?.itemInfo?.itemStruct;
+  const universalData = parseRehydrationData(html);
+  const itemStruct = universalData ? extractItemStruct(universalData) : null;
+
   if (!itemStruct) {
     return {
       ok: false,
