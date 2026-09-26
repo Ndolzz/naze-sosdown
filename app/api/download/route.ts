@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const headers: Record<string, string = { ...BASE_HEADERS };
+    const headers: Record<string, string> = { ...BASE_HEADERS };
 
     // Suntikkan header khusus platform bila platform dikenali.
     if (platform in PLATFORM_HEADERS) {
@@ -60,7 +60,8 @@ export async function GET(request: NextRequest) {
 
     const responseHeaders = new Headers();
     responseHeaders.set("Content-Type", contentType);
-    responseHeaders.set(
+    responseHeaders
+.set(
       "Content-Disposition",
       `attachment; filename="${filename}"`
     );
