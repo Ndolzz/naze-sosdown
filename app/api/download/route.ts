@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
+import { getCookieFor } from "@/lib/media-cookies";
 
 /*
   Route proxy unduhan.
 
   Media di CDN TikTok/Instagram hanya bisa diakses bila request membawa
-  header yang sesuai (terutama Referer dari platform asal). Tanpa itu CDN
-  menjawab 403 Forbidden. Route ini menyuntikkan header tersebut sesuai
-  platform sumber sebelum meneruskan berkas ke pengguna.
+  header yang sesuai: Referer dari platform asal dan cookie sesi yang
+  diterima saat tahap resolve. Tanpa itu CDN menjawab 403 Forbidden.
+  Route ini menyuntikkan header tersebut sebelum meneruskan berkas.
 */
 
 const BASE_HEADERS: Record<string, string> = {
@@ -19,11 +20,9 @@ const BASE_HEADERS: Record<string, string> = {
 const PLATFORM_HEADERS: Record<string, Record<string, string>> = {
   tiktok: {
     "Referer": "https://www.tiktok.com/",
-    "Range": "bytes=0-",
   },
   instagram: {
     "Referer": "https://www.instagram.com/",
-    "Range": "bytes=0-",
   },
 };
 
@@ -40,9 +39,14 @@ export async function GET(request: NextRequest) {
   try {
     const headers: Record<string, string> = { ...BASE_HEADERS };
 
-    // Suntikkan header khusus platform bila platform dikenali.
     if (platform in PLATFORM_HEADERS) {
       Object.assign(headers, PLATFORM_HEADERS[platform]);
+    }
+
+    // Teruskan cookie sesi dari tahap resolve agar CDN tidak menolak 403.
+    const sourceCookie = getCookieFor(targetUrl);
+    if (sourceCookie) {
+      headers["Cookie"] = sourceCookie;
     }
 
     const response = await fetch(targetUrl, { headers });
@@ -60,8 +64,7 @@ export async function GET(request: NextRequest) {
 
     const responseHeaders = new Headers();
     responseHeaders.set("Content-Type", contentType);
-    responseHeaders
-.set(
+    responseHeaders.set(
       "Content-Disposition",
       `attachment; filename="${filename}"`
     );
