@@ -5,19 +5,20 @@ import { LinkInput } from "@/components/link-input";
 import { ResultCard } from "@/components/result-card";
 import { IconAlert } from "@/components/icons/IconAlert";
 import { detectPlatform } from "@/lib/resolvers/detect-platform";
-import type { ResolvedMediaItem, Platform } from "@/lib/resolvers/types";
+import type { ResolvedMediaItem, Platform, ResolvedMedia, ResolverResult } from "@/lib/resolvers/types";
 import styles from "./page.module.css";
 
-interface DemoResult {
+interface DisplayResult {
   platform: Platform;
   author: string | null;
   item: ResolvedMediaItem;
+  type: string;
 }
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [results, setResults] = useState<DemoResult[]>([]);
+  const [results, setResults] = useState<DisplayResult[]>([]);
 
   async function handleSubmit(url: string) {
     setErrorMessage(null);
@@ -31,12 +32,39 @@ export default function Home() {
       return;
     }
 
-    // Titik integrasi untuk Kelompok 3 sampai 5: pemanggilan /api/resolve
-    // dengan detected.platform dan detected.normalizedUrl akan menggantikan
-    // simulasi di bawah ini pada tahap berikutnya.
-    await new Promise((resolve) => setTimeout(resolve, 400));
+    try {
+      const response = await fetch("/api/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: detected.normalizedUrl }),
+      });
 
-    setLoading(false);
+      const result: ResolverResult = await response.json();
+
+      if (!result.ok) {
+        setErrorMessage(result.error.message);
+      } else {
+        const { data } = result;
+        // Flatten items to display each as a card
+        const newDisplayItems: DisplayResult[] = data.items.map((item) => ({
+          platform: data.platform,
+          author: data.author,
+          item: item,
+          type: data.type,
+        }));
+        
+        setResults(newDisplayItems);
+      }
+    } catch (error) {
+      setErrorMessage("Terjadi kesalahan koneksi ke server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleDownload(result: DisplayResult) {
+    const downloadUrl = `/api/download?url=${encodeURIComponent(result.item.url)}&platform=${result.platform}&type=${result.type}`;
+    window.open(downloadUrl, "_blank");
   }
 
   return (
@@ -72,7 +100,7 @@ export default function Home() {
                 platform={result.platform}
                 author={result.author}
                 item={result.item}
-                onDownload={() => {}}
+                onDownload={() => handleDownload(result)}
               />
             ))}
           </div>
