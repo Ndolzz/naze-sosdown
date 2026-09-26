@@ -21,3 +21,38 @@ Next.js (App Router) dengan TypeScript, frontend dan backend berada dalam satu p
 ## Gaya Desain
 
 Modern SaaS, Minimalist, Dark Professional, dengan sentuhan Bento pada susunan kartu, dan tipografi bergaya terminal untuk elemen teknis. Seluruh ikon dibuat sebagai SVG kustom, tanpa emoji dan tanpa ikon simbol bawaan sistem.
+
+
+## API Key (Opsional)
+
+Mode terproteksi API key diaktifkan lewat environment variable. Tanpa itu, aplikasi berjalan bebas.
+
+### Environment Variables
+
+- `API_KEYS`: daftar key valid, dipisah koma. Contoh: `naze-20260926-abc123def456, naze-prod-xyz789`
+- `REQUIRE_API_KEY`: isi `true` untuk mengaktifkan mode terproteksi. Selain itu, mode bebas.
+
+### Membuat Key Baru
+
+Jalankan skrip CLI lalu salin hasilnya ke `API_KEYS`:
+
+```bash
+node scripts/generate-api-key.mjs --prefix naze
+```
+
+### Mengirim Key dari Klien
+
+Pilih salah satu cara:
+
+```bash
+# Header x-api-key
+curl -H "x-api-key: naze-20260926-abc123def456" -X POST https://app.example.com/api/resolve -d '{"url":"https://www.tiktok.com/@user/video/123"}'
+
+# Header Authorization Bearer
+curl -H "Authorization: Bearer naze-20260926-abc123def456" ...
+
+# Query parameter
+curl "https://app.example.com/api/download?url=...&key=naze-20260926-abc123def456"
+```
+
+Request tanpa key yang valid akan menerima respons 401 dengan pesan JSON.
