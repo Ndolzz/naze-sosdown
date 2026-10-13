@@ -32,6 +32,8 @@ Mode terproteksi API key diaktifkan lewat environment variable. Tanpa itu, aplik
 - `API_KEYS`: daftar key valid, dipisah koma. Contoh: `naze-20260926-abc123def456, naze-prod-xyz789`
 - `REQUIRE_API_KEY`: isi `true` untuk mengaktifkan mode terproteksi. Selain itu, mode bebas.
 
+Kerangka konfigurasi tersedia pada berkas `.env.example`. Salin menjadi `.env.local` lalu sesuaikan nilainya.
+
 ### Membuat Key Baru
 
 Jalankan skrip CLI lalu salin hasilnya ke `API_KEYS`:
@@ -56,3 +58,7 @@ curl "https://app.example.com/api/download?url=...&key=naze-20260926-abc123def45
 ```
 
 Request tanpa key yang valid akan menerima respons 401 dengan pesan JSON.
+
+## Lisensi
+
+Proyek ini dilisensikan di bawah MIT License. Lihat berkas LICENSE untuk teks lengkapnya.
