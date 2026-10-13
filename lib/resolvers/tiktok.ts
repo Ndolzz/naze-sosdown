@@ -100,25 +100,59 @@ function buildVideoItems(itemStruct: any): ResolvedMediaItem[] {
   if (!video) return [];
 
   const items: ResolvedMediaItem[] = [];
+  const quality: string = video.ratio ? String(video.ratio) : "original";
+  const thumbnailUrl: string | null = video.originCover ?? video.cover ?? null;
 
-  const noWatermarkUrl: string | undefined = video.playAddr;
-  const watermarkUrl: string | undefined = video.downloadAddr;
+  // PERAWATAN: TikTok menyertakan daftar varian bitrate pada video.bitrateInfo.
+  // Varian bitrate tertinggi diberi label hd, varian di bawahnya diberi label
+  // sd. Bila struktur ini tidak tersedia, jalur cadangan video.playAddr di
+  // bawah tetap menghasilkan satu item unduhan.
+  const bitrateInfo: any[] = Array.isArray(video.bitrateInfo) ? video.bitrateInfo : [];
 
-  if (noWatermarkUrl) {
+  const variants = bitrateInfo
+    .map((info) => {
+      const url: string | undefined = info?.PlayAddr?.UrlList?.[0];
+      const bitrate = Number(info?.Bitrate ?? 0);
+      return url ? { url, bitrate } : null;
+    })
+    .filter((variant): variant is { url: string; bitrate: number } => variant !== null)
+    .sort((a, b) => b.bitrate - a.bitrate);
+
+  if (variants.length > 0) {
+    variants.forEach((variant, index) => {
+      items.push({
+        url: variant.url,
+        quality,
+        label: index === 0 ? "hd" : "sd",
+        hasWatermark: false,
+        mimeType: "video/mp4",
+        thumbnailUrl,
+      });
+    });
+  } else if (video.playAddr) {
     items.push({
-      url: noWatermarkUrl,
-      quality: video.ratio ? `${video.ratio}` : "original",
+      url: video.playAddr,
+      quality,
+      label: "hd",
       hasWatermark: false,
       mimeType: "video/mp4",
+      thumbnailUrl,
     });
   }
 
-  if (watermarkUrl && watermarkUrl !== noWatermarkUrl) {
+  const watermarkUrl: string | undefined = video.downloadAddr;
+  if (
+    watermarkUrl &&
+    watermarkUrl !== video.playAddr &&
+    !variants.some((variant) => variant.url === watermarkUrl)
+  ) {
     items.push({
       url: watermarkUrl,
-      quality: video.ratio ? `${video.ratio}` : "original",
+      quality,
+      label: null,
       hasWatermark: true,
       mimeType: "video/mp4",
+      thumbnailUrl,
     });
   }
 
@@ -139,6 +173,7 @@ function buildPhotoItems(itemStruct: any): ResolvedMediaItem[] {
         quality: `${image?.imageWidth ?? "auto"}x${image?.imageHeight ?? "auto"}`,
         hasWatermark: false,
         mimeType: "image/jpeg",
+        thumbnailUrl: url,
       };
       return item;
     })
@@ -213,11 +248,14 @@ export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
     };
   }
 
-  // Simpan cookie sesi agar route unduh bisa mengakses CDN tanpa 403.
-  rememberCookies(
-    items.map((item) => item.url),
-    sourceCookie
+  // Simpan cookie sesi agar route unduh dan pratinjau bisa mengakses CDN
+  // tanpa 403, termasuk untuk URL gambar sampul.
+  const mediaUrls = items.flatMap((item) =>
+    item.thumbnailUrl && item.thumbnailUrl !== item.url
+      ? [item.url, item.thumbnailUrl]
+      : [item.url]
   );
+  rememberCookies(mediaUrls, sourceCookie);
 
   return {
     ok: true,

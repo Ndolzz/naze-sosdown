@@ -27,6 +27,85 @@
   color: var(--danger);
 }
 
+.preview {
+  position: relative;
+  margin-bottom: var(--space-3);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background-color: var(--bg-raised-alt);
+}
+
+.previewImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.previewVideo {
+  display: block;
+  width: 100%;
+  height: auto;
+  background-color: #000;
+}
+
+.playButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.playIcon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+.playIcon svg {
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
+}
+
+.qualityToggle {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.qualityButton {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-raised-alt);
+  color: var(--text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.qualityButton:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.qualityButtonActive {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
 .author {
   font-size: 14px;
   color: var(--text-primary);

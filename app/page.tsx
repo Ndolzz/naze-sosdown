@@ -5,14 +5,55 @@ import { LinkInput } from "@/components/link-input";
 import { ResultCard } from "@/components/result-card";
 import { IconAlert } from "@/components/icons/IconAlert";
 import { detectPlatform } from "@/lib/resolvers/detect-platform";
-import type { ResolvedMediaItem, Platform, ResolvedMedia, ResolverResult } from "@/lib/resolvers/types";
+import type { ResolvedMediaItem, Platform, MediaKind, ResolvedMedia, ResolverResult } from "@/lib/resolvers/types";
 import styles from "./page.module.css";
 
 interface DisplayResult {
   platform: Platform;
   author: string | null;
-  item: ResolvedMediaItem;
-  type: string;
+  type: MediaKind;
+  items: ResolvedMediaItem[];
+}
+
+/*
+  Mengelompokkan item hasil resolver menjadi kartu tampilan. Video dengan
+  beberapa varian kualitas (HD/SD) berada dalam satu kartu yang sama sesuai
+  status watermarknya, sedangkan foto carousel menjadi kartu terpisah
+  per foto.
+*/
+function groupResults(data: ResolvedMedia): DisplayResult[] {
+  if (data.type !== "video") {
+    return data.items.map((item) => ({
+      platform: data.platform,
+      author: data.author,
+      type: data.type,
+      items: [item],
+    }));
+  }
+
+  const groups: DisplayResult[] = [];
+  const withoutWatermark = data.items.filter((item) => !item.hasWatermark);
+  const withWatermark = data.items.filter((item) => item.hasWatermark);
+
+  if (withoutWatermark.length > 0) {
+    groups.push({
+      platform: data.platform,
+      author: data.author,
+      type: "video",
+      items: withoutWatermark,
+    });
+  }
+
+  if (withWatermark.length > 0) {
+    groups.push({
+      platform: data.platform,
+      author: data.author,
+      type: "video",
+      items: withWatermark,
+    });
+  }
+
+  return groups;
 }
 
 export default function Home() {
@@ -44,16 +85,7 @@ export default function Home() {
       if (!result.ok) {
         setErrorMessage(result.error.message);
       } else {
-        const { data } = result;
-        // Flatten items to display each as a card
-        const newDisplayItems: DisplayResult[] = data.items.map((item) => ({
-          platform: data.platform,
-          author: data.author,
-          item: item,
-          type: data.type,
-        }));
-        
-        setResults(newDisplayItems);
+        setResults(groupResults(result.data));
       }
     } catch (error) {
       setErrorMessage("Terjadi kesalahan koneksi ke server.");
@@ -62,15 +94,19 @@ export default function Home() {
     }
   }
 
-  function handleDownload(result: DisplayResult) {
-    const downloadUrl = `/api/download?url=${encodeURIComponent(result.item.url)}&platform=${result.platform}&type=${result.type}`;
-    window.open(downloadUrl, "_blank");
+  function handleDownload(result: DisplayResult, item: ResolvedMediaItem) {
+    const params = new URLSearchParams({
+      url: item.url,
+      platform: result.platform,
+      type: result.type,
+    });
+    window.open("/api/download?" + params.toString(), "_blank");
   }
 
   return (
     <main className={styles.main}>
       <section className={styles.hero}>
-        <span className={`${styles.eyebrow} mono`}>naze-sosdown</span>
+        <span className={styles.eyebrow + " mono"}>naze-sosdown</span>
         <h1 className={styles.title}>Satu tautan, satu berkas siap unduh.</h1>
         <p className={styles.subtitle}>
           Tempel tautan video atau foto publik dari TikTok maupun Instagram.
@@ -91,7 +127,7 @@ export default function Home() {
 
       <section className={styles.results}>
         {results.length === 0 ? (
-          <p className={`${styles.empty} mono`}>Belum ada hasil untuk ditampilkan.</p>
+          <p className={styles.empty + " mono"}>Belum ada hasil untuk ditampilkan.</p>
         ) : (
           <div className="bentoGrid">
             {results.map((result, index) => (
@@ -99,8 +135,9 @@ export default function Home() {
                 key={index}
                 platform={result.platform}
                 author={result.author}
-                item={result.item}
-                onDownload={() => handleDownload(result)}
+                type={result.type}
+                items={result.items}
+                onDownload={(item) => handleDownload(result, item)}
               />
             ))}
           </div>

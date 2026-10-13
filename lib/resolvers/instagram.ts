@@ -100,13 +100,20 @@ function buildItemsFromNode(node: {
     ? `${node.dimensions.width}x${node.dimensions.height}`
     : "original";
 
+  // Halaman embed Instagram hanya menyediakan satu varian media, sehingga
+  // item tidak diberi label kualitas. display_url dipakai sebagai poster
+  // video sekaligus pratinjau foto.
+  const poster = node.display_url ?? null;
+
   if (node.is_video && node.video_url) {
     return [
       {
         url: node.video_url,
         quality,
+        label: null,
         hasWatermark: false,
         mimeType: "video/mp4",
+        thumbnailUrl: poster,
       },
     ];
   }
@@ -116,8 +123,10 @@ function buildItemsFromNode(node: {
       {
         url: node.display_url,
         quality,
+        label: null,
         hasWatermark: false,
         mimeType: "image/jpeg",
+        thumbnailUrl: poster,
       },
     ];
   }

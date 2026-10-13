@@ -2,11 +2,21 @@ export type Platform = "tiktok" | "instagram";
 
 export type MediaKind = "video" | "photo" | "carousel";
 
+export type QualityLabel = "hd" | "sd";
+
 export interface ResolvedMediaItem {
   url: string;
   quality: string;
+  /**
+   * Label kualitas varian: hd untuk varian bitrate tertinggi, sd untuk
+   * varian di bawahnya. Null bila item tidak termasuk pilihan kualitas,
+   * misalnya versi berwatermark atau media satu varian.
+   */
+  label?: QualityLabel | null;
   hasWatermark: boolean;
   mimeType: string;
+  /** URL gambar sampul untuk pratinjau pada antarmuka. */
+  thumbnailUrl?: string | null;
 }
 
 export interface ResolvedMedia {
