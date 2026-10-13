@@ -2,12 +2,16 @@ import { NextRequest } from "next/server";
 import { getCookieFor } from "@/lib/media-cookies";
 
 /*
-  Route proxy unduhan.
+  Route proxy unduhan dan pratinjau.
 
   Media di CDN TikTok/Instagram hanya bisa diakses bila request membawa
   header yang sesuai: Referer dari platform asal dan cookie sesi yang
   diterima saat tahap resolve. Tanpa itu CDN menjawab 403 Forbidden.
   Route ini menyuntikkan header tersebut sebelum meneruskan berkas.
+
+  Parameter disposition menentukan cara peramban memperlakukan berkas:
+  - attachment (bawaan): berkas diunduh.
+  - inline: berkas dirender sebagai pratinjau di dalam halaman.
 */
 
 const BASE_HEADERS: Record<string, string> = {
@@ -31,6 +35,8 @@ export async function GET(request: NextRequest) {
   const targetUrl = searchParams.get("url");
   const platform = searchParams.get("platform") || "naze";
   const type = searchParams.get("type") || "media";
+  const disposition =
+    searchParams.get("disposition") === "inline" ? "inline" : "attachment";
 
   if (!targetUrl) {
     return new Response("Missing URL parameter", { status: 400 });
@@ -49,9 +55,16 @@ export async function GET(request: NextRequest) {
       headers["Cookie"] = sourceCookie;
     }
 
+    // Teruskan header Range agar pratinjau video dapat di-seek tanpa
+    // memuat ulang seluruh berkas.
+    const range = request.headers.get("range");
+    if (range) {
+      headers["Range"] = range;
+    }
+
     const response = await fetch(targetUrl, { headers });
 
-    if (!response.ok) {
+    if (!response.ok && response.status !== 206) {
       return new Response(`Failed to fetch source: ${response.status}`, {
         status: response.status,
       });
@@ -66,14 +79,22 @@ export async function GET(request: NextRequest) {
     responseHeaders.set("Content-Type", contentType);
     responseHeaders.set(
       "Content-Disposition",
-      `attachment; filename="${filename}"`
+      `${disposition}; filename="${filename}"`
     );
+
+    if (disposition === "inline") {
+      responseHeaders.set("Accept-Ranges", "bytes");
+      const contentRange = response.headers.get("Content-Range");
+      if (contentRange) {
+        responseHeaders.set("Content-Range", contentRange);
+      }
+    }
 
     // Transfer buffer to stream
     const data = await response.arrayBuffer();
 
     return new Response(data, {
-      status: 200,
+      status: response.status,
       headers: responseHeaders,
     });
   } catch (error) {
