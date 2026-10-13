@@ -14,6 +14,8 @@ Dokumen di dalam folder specs menjadi sumber kebenaran (source of truth) untuk a
 
 001 Core Downloader (TikTok dan Instagram), lihat folder specs/001-core-downloader.
 
+002 Opsi Unduhan HD dan Pratinjau Media, lihat folder specs/002-hd-preview. Fitur ini menambahkan pilihan kualitas HD dan SD pada video TikTok dengan varian bitrate ganda, gambar sampul sebagai pratinjau, serta pemutaran video inline pada kartu hasil.
+
 ## Tech Stack
 
 Next.js (App Router) dengan TypeScript, frontend dan backend berada dalam satu proyek yang sama.
