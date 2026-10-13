@@ -90,7 +90,8 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Transfer buffer to stream
+    // Buffer seluruh berkas di memori. Pada skala proyek ini masih dapat
+    // diterima; streaming penuh menjadi pekerjaan fase berikutnya.
     const data = await response.arrayBuffer();
 
     return new Response(data, {
