@@ -12,6 +12,7 @@ interface DisplayResult {
   platform: Platform;
   author: string | null;
   type: MediaKind;
+  sourceUrl: string | null;
   items: ResolvedMediaItem[];
 }
 
@@ -27,6 +28,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       platform: data.platform,
       author: data.author,
       type: data.type,
+      sourceUrl: data.sourceUrl ?? null,
       items: [item],
     }));
   }
@@ -40,6 +42,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       platform: data.platform,
       author: data.author,
       type: "video",
+      sourceUrl: data.sourceUrl ?? null,
       items: withoutWatermark,
     });
   }
@@ -49,6 +52,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       platform: data.platform,
       author: data.author,
       type: "video",
+      sourceUrl: data.sourceUrl ?? null,
       items: withWatermark,
     });
   }
@@ -100,6 +104,9 @@ export default function Home() {
       platform: result.platform,
       type: result.type,
     });
+    if (result.sourceUrl) {
+      params.set("source", result.sourceUrl);
+    }
     window.open("/api/download?" + params.toString(), "_blank");
   }
 
@@ -136,6 +143,7 @@ export default function Home() {
                 platform={result.platform}
                 author={result.author}
                 type={result.type}
+                sourceUrl={result.sourceUrl}
                 items={result.items}
                 onDownload={(item) => handleDownload(result, item)}
               />

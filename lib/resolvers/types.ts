@@ -25,6 +25,12 @@ export interface ResolvedMedia {
   items: ResolvedMediaItem[];
   author: string | null;
   caption: string | null;
+  /**
+   * URL halaman sumber (halaman video TikTok atau embed Instagram).
+   * Dipakai route unduhan untuk memperbarui cookie sesi saat CDN menolak
+   * permintaan dengan 403.
+   */
+  sourceUrl?: string | null;
 }
 
 export interface ResolveError {

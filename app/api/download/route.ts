@@ -1,13 +1,20 @@
 import { NextRequest } from "next/server";
-import { getCookieFor } from "@/lib/media-cookies";
+import { extractResponseCookie, getCookieFor, rememberCookies } from "@/lib/media-cookies";
 
 /*
   Route proxy unduhan dan pratinjau.
 
-  Media di CDN TikTok/Instagram hanya bisa diakses bila request membawa
-  header yang sesuai: Referer dari platform asal dan cookie sesi yang
-  diterima saat tahap resolve. Tanpa itu CDN menjawab 403 Forbidden.
-  Route ini menyuntikkan header tersebut sebelum meneruskan berkas.
+  Media di CDN TikTok/Instagram kadang menolak akses dari IP server dengan
+  403 Forbidden. Penyebab paling umum: cookie sesi dari tahap resolve tidak
+  tersedia pada instance serverless yang menangani permintaan ini (memori
+  antar instance tidak dibagi), atau cookie yang tersimpan sudah
+  kedaluwarsa. Route ini mengambil berkas dengan tiga upaya berjenjang:
+
+  1. Header lengkap plus cookie tersimpan dari tahap resolve.
+  2. Cookie sesi baru yang diambil langsung dari halaman sumber (parameter
+     source), lalu ulangi permintaan.
+  3. Permintaan polos tanpa cookie dan referer untuk CDN yang justru
+     menolak header tersebut.
 
   Parameter disposition menentukan cara peramban memperlakukan berkas:
   - attachment (bawaan): berkas diunduh.
@@ -30,11 +37,105 @@ const PLATFORM_HEADERS: Record<string, Record<string, string>> = {
   },
 };
 
+function isMediaResponse(status: number): boolean {
+  return (status >= 200 && status < 300) || status === 206;
+}
+
+function buildMediaHeaders(
+  platform: string,
+  cookie: string | null,
+  range: string | null,
+  bare: boolean
+): Record<string, string> {
+  const headers: Record<string, string> = bare
+    ? { "User-Agent": BASE_HEADERS["User-Agent"], "Accept": "*/*" }
+    : { ...BASE_HEADERS };
+
+  if (!bare && platform in PLATFORM_HEADERS) {
+    Object.assign(headers, PLATFORM_HEADERS[platform]);
+  }
+
+  if (!bare && cookie) {
+    headers["Cookie"] = cookie;
+  }
+
+  if (range) {
+    headers["Range"] = range;
+  }
+
+  return headers;
+}
+
+// Ambil cookie sesi baru dari halaman sumber. Cookie juga disimpan ke cache
+// media agar permintaan berikutnya langsung lolos pada upaya pertama.
+async function refreshSessionCookie(
+  sourceUrl: string,
+  platform: string,
+  targetUrl: string
+): Promise<string | null> {
+  const referer =
+    platform in PLATFORM_HEADERS
+      ? PLATFORM_HEADERS[platform]["Referer"]
+      : "https://www.google.com/";
+
+  try {
+    const response = await fetch(sourceUrl, {
+      headers: {
+        "User-Agent": BASE_HEADERS["User-Agent"],
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9,id;q=0.8",
+        "Referer": referer,
+      },
+      redirect: "follow",
+    });
+
+    if (!response.ok) return null;
+
+    const cookie = extractResponseCookie(response);
+    if (cookie) {
+      rememberCookies([targetUrl], cookie);
+    }
+    return cookie;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchMediaWithFallback(
+  targetUrl: string,
+  platform: string,
+  sourceUrl: string | null,
+  range: string | null
+): Promise<Response> {
+  // Upaya 1: header lengkap dengan cookie tersimpan dari tahap resolve.
+  const first = await fetch(targetUrl, {
+    headers: buildMediaHeaders(platform, getCookieFor(targetUrl), range, false),
+  });
+  if (isMediaResponse(first.status)) return first;
+
+  // Upaya 2: perbarui sesi dari halaman sumber lalu ulangi.
+  if (sourceUrl) {
+    const freshCookie = await refreshSessionCookie(sourceUrl, platform, targetUrl);
+    if (freshCookie) {
+      const second = await fetch(targetUrl, {
+        headers: buildMediaHeaders(platform, freshCookie, range, false),
+      });
+      if (isMediaResponse(second.status)) return second;
+    }
+  }
+
+  // Upaya 3: permintaan polos tanpa cookie dan referer.
+  return fetch(targetUrl, {
+    headers: buildMediaHeaders(platform, null, range, true),
+  });
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const targetUrl = searchParams.get("url");
   const platform = searchParams.get("platform") || "naze";
   const type = searchParams.get("type") || "media";
+  const sourceUrl = searchParams.get("source");
   const disposition =
     searchParams.get("disposition") === "inline" ? "inline" : "attachment";
 
@@ -43,28 +144,10 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const headers: Record<string, string> = { ...BASE_HEADERS };
-
-    if (platform in PLATFORM_HEADERS) {
-      Object.assign(headers, PLATFORM_HEADERS[platform]);
-    }
-
-    // Teruskan cookie sesi dari tahap resolve agar CDN tidak menolak 403.
-    const sourceCookie = getCookieFor(targetUrl);
-    if (sourceCookie) {
-      headers["Cookie"] = sourceCookie;
-    }
-
-    // Teruskan header Range agar pratinjau video dapat di-seek tanpa
-    // memuat ulang seluruh berkas.
     const range = request.headers.get("range");
-    if (range) {
-      headers["Range"] = range;
-    }
+    const response = await fetchMediaWithFallback(targetUrl, platform, sourceUrl, range);
 
-    const response = await fetch(targetUrl, { headers });
-
-    if (!response.ok && response.status !== 206) {
+    if (!isMediaResponse(response.status)) {
       return new Response(`Failed to fetch source: ${response.status}`, {
         status: response.status,
       });

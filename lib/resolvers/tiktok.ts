@@ -265,6 +265,7 @@ export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
       items,
       author: itemStruct?.author?.uniqueId ?? null,
       caption: itemStruct?.desc ?? null,
+      sourceUrl: canonicalUrl,
     },
   };
 }

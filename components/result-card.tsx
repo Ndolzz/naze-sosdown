@@ -12,25 +12,35 @@ interface ResultCardProps {
   platform: Platform;
   author: string | null;
   type: MediaKind;
+  sourceUrl: string | null;
   items: ResolvedMediaItem[];
   onDownload: (item: ResolvedMediaItem) => void;
 }
 
 /*
   Membangun URL pratinjau lewat proxy unduhan dengan disposition inline
-  karena CDN sumber menolak akses langsung dari peramban.
+  karena CDN sumber menolak akses langsung dari peramban. Parameter source
+  memungkinkan proxy memperbarui sesi bila CDN menolak 403.
 */
-function buildPreviewUrl(url: string, platform: Platform, type: MediaKind): string {
+function buildPreviewUrl(
+  url: string,
+  platform: Platform,
+  type: MediaKind,
+  sourceUrl: string | null
+): string {
   const params = new URLSearchParams({
     url,
     platform,
     type,
     disposition: "inline",
   });
+  if (sourceUrl) {
+    params.set("source", sourceUrl);
+  }
   return "/api/download?" + params.toString();
 }
 
-export function ResultCard({ platform, author, type, items, onDownload }: ResultCardProps) {
+export function ResultCard({ platform, author, type, sourceUrl, items, onDownload }: ResultCardProps) {
   const primary = items[0];
   const hdItem = items.find((item) => item.label === "hd") ?? null;
   const sdItem = items.find((item) => item.label === "sd") ?? null;
@@ -48,9 +58,9 @@ export function ResultCard({ platform, author, type, items, onDownload }: Result
   if (!selectedItem) return null;
 
   const isVideo = selectedItem.mimeType.startsWith("video/");
-  const previewUrl = buildPreviewUrl(selectedItem.url, platform, type);
+  const previewUrl = buildPreviewUrl(selectedItem.url, platform, type, sourceUrl);
   const posterUrl = selectedItem.thumbnailUrl
-    ? buildPreviewUrl(selectedItem.thumbnailUrl, platform, type)
+    ? buildPreviewUrl(selectedItem.thumbnailUrl, platform, type, sourceUrl)
     : null;
   const previewAlt = "Pratinjau dari " + (author ?? "media");
 

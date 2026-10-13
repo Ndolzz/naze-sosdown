@@ -7,7 +7,8 @@
   1. Pesan masuk berisi tautan TikTok/Instagram.
   2. Bot memanggil API /api/resolve di server yang sama.
   3. Bot mengunduh setiap item media lewat proxy /api/download
-     (proxy menyuntikkan Referer + cookie sehingga CDN tidak 403).
+     (proxy menyuntikkan Referer + cookie sehingga CDN tidak 403, dan
+     memperbarui sesi otomatis lewat parameter source bila ditolak).
   4. Bot mengirim berkas langsung ke chat sebagai video/gambar.
 
   Pemakaian:
@@ -48,9 +49,19 @@ async function resolveLink(url) {
   return result.data;
 }
 
-async function downloadMedia(mediaUrl, platform, type) {
-  const proxyUrl = `${API_BASE}/api/download?url=${encodeURIComponent(mediaUrl)}&platform=${platform}&type=${type}`;
-  const response = await fetch(proxyUrl, { headers: apiHeaders() });
+async function downloadMedia(mediaUrl, platform, type, sourceUrl) {
+  const params = new URLSearchParams({
+    url: mediaUrl,
+    platform,
+    type,
+  });
+  if (sourceUrl) {
+    params.set("source", sourceUrl);
+  }
+
+  const response = await fetch(`${API_BASE}/api/download?${params}`, {
+    headers: apiHeaders(),
+  });
   if (!response.ok) {
     throw new Error(`unduh gagal: ${response.status}`);
   }
@@ -92,7 +103,12 @@ async function main() {
         const data = await resolveLink(linkMatch[0]);
 
         for (const item of data.items) {
-          const media = await downloadMedia(item.url, data.platform, data.type);
+          const media = await downloadMedia(
+            item.url,
+            data.platform,
+            data.type,
+            data.sourceUrl
+          );
 
           if (item.mimeType.startsWith("video/")) {
             await sock.sendMessage(chatId, {

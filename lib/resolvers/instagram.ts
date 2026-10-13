@@ -53,11 +53,13 @@ function unescapeJsonString(raw: string): string {
   return JSON.parse(`"${raw}"`);
 }
 
-async function fetchEmbedHtml(type: string, shortcode: string): Promise<string> {
+function buildEmbedUrl(type: string, shortcode: string): string {
   const embedType = type === "p" ? "p" : type;
-  const url = `https://www.instagram.com/${embedType}/${shortcode}/embed/captioned/`;
+  return `https://www.instagram.com/${embedType}/${shortcode}/embed/captioned/`;
+}
 
-  const response = await fetch(url, {
+async function fetchEmbedHtml(type: string, shortcode: string): Promise<string> {
+  const response = await fetch(buildEmbedUrl(type, shortcode), {
     headers: {
       "User-Agent": DESKTOP_USER_AGENT,
       Accept: "text/html,application/xhtml+xml",
@@ -146,6 +148,8 @@ export async function resolveInstagram(rawUrl: string): Promise<ResolverResult> 
     };
   }
 
+  const sourceUrl = buildEmbedUrl(shortcodeInfo.type, shortcodeInfo.shortcode);
+
   let html: string;
   try {
     html = await fetchEmbedHtml(shortcodeInfo.type, shortcodeInfo.shortcode);
@@ -217,6 +221,7 @@ export async function resolveInstagram(rawUrl: string): Promise<ResolverResult> 
       items,
       author: media.owner?.username ?? null,
       caption: caption ?? null,
+      sourceUrl,
     },
   };
 }
