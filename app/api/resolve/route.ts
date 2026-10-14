@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { detectPlatform } from "@/lib/resolvers/detect-platform";
 import { resolveTikTok } from "@/lib/resolvers/tiktok";
 import { resolveInstagram } from "@/lib/resolvers/instagram";
+import { resolveYouTube } from "@/lib/resolvers/youtube";
 import type { ResolverResult } from "@/lib/resolvers/types";
 
 export async function POST(request: NextRequest) {
@@ -36,6 +37,8 @@ export async function POST(request: NextRequest) {
       result = await resolveTikTok(detected.normalizedUrl);
     } else if (detected.platform === "instagram") {
       result = await resolveInstagram(detected.normalizedUrl);
+    } else if (detected.platform === "youtube") {
+      result = await resolveYouTube(detected.normalizedUrl);
     } else {
       return NextResponse.json(
         {

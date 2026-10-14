@@ -77,6 +77,12 @@
   filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
 }
 
+.audioPlayer {
+  display: block;
+  width: 100%;
+  margin: 0 0 var(--space-3) 0;
+}
+
 .qualityToggle {
   display: flex;
   gap: var(--space-2);
@@ -127,6 +133,12 @@
 
 .metaRow:last-child {
   border-bottom: none;
+}
+
+.downloadActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
 }
 
 .downloadButton {

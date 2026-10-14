@@ -26,7 +26,7 @@ export function LinkInput({ onSubmit, loading }: LinkInputProps) {
         <Input
           value={value}
           onChange={(event) => setValue(event.target.value)}
-          placeholder="Tempel tautan TikTok atau Instagram di sini"
+          placeholder="Tempel tautan YouTube, TikTok, atau Instagram di sini"
           inputMode="url"
         />
       </div>

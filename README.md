@@ -1,6 +1,6 @@
 # naze-sosdown
 
-Alat unduh video dan foto dari TikTok dan Instagram tanpa menggunakan API resmi kedua platform. Dibangun dengan metode Spec Driven Development (SDD): setiap fitur didefinisikan lebih dulu dalam bentuk spesifikasi sebelum masuk ke tahap implementasi.
+Alat unduh video, foto, dan audio dari YouTube, TikTok, dan Instagram tanpa menggunakan API resmi platform. Dibangun dengan metode Spec Driven Development (SDD): setiap fitur didefinisikan lebih dulu dalam bentuk spesifikasi sebelum masuk ke tahap implementasi.
 
 ## Metode Kerja
 
@@ -15,6 +15,10 @@ Dokumen di dalam folder specs menjadi sumber kebenaran (source of truth) untuk a
 001 Core Downloader (TikTok dan Instagram), lihat folder specs/001-core-downloader.
 
 002 Opsi Unduhan HD dan Pratinjau Media, lihat folder specs/002-hd-preview. Fitur ini menambahkan pilihan kualitas HD dan SD pada video TikTok dengan varian bitrate ganda, gambar sampul sebagai pratinjau, serta pemutaran video inline pada kartu hasil.
+
+003 Dukungan YouTube dan Pilihan Format, lihat folder specs/003-youtube-mp3. Fitur ini menambahkan unduhan video YouTube dengan pilihan resolusi, pemilih format MP4 atau MP3 pada kartu hasil, opsi unduhan MP3 dari jalur audio mandiri YouTube dan lagu latar TikTok, serta pembaruan URL media YouTube secara otomatis ketika permintaan unduhan ditolak.
+
+Catatan untuk Fitur 003: opsi MP3 mengunduh jalur audio asli dari sumber tanpa transcoding, sehingga wadah berkasnya mengikuti sumber (mp3, m4a, atau webm). Instagram tidak menyediakan jalur audio mandiri pada halaman embed sehingga opsi MP3 tidak tersedia untuk platform tersebut.
 
 ## Tech Stack
 

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { extractResponseCookie, getCookieFor, rememberCookies } from "@/lib/media-cookies";
+import { refreshYouTubeFormatUrl } from "@/lib/resolvers/youtube";
 
 /*
   Route proxy unduhan dan pratinjau.
@@ -8,17 +9,22 @@ import { extractResponseCookie, getCookieFor, rememberCookies } from "@/lib/medi
   403 Forbidden. Penyebab paling umum: cookie sesi dari tahap resolve tidak
   tersedia pada instance serverless yang menangani permintaan ini (memori
   antar instance tidak dibagi), atau cookie yang tersimpan sudah
-  kedaluwarsa. Route ini mengambil berkas dengan tiga upaya berjenjang:
+  kedaluwarsa. Route ini mengambil berkas dengan upaya berjenjang:
 
   1. Header lengkap plus cookie tersimpan dari tahap resolve.
-  2. Cookie sesi baru yang diambil langsung dari halaman sumber (parameter
-     source), lalu ulangi permintaan.
+  2. Untuk TikTok/Instagram: cookie sesi baru yang diambil langsung dari
+     halaman sumber (parameter source), lalu ulangi permintaan. Untuk
+     YouTube: URL segar dengan penanda format yang sama (parameter itag)
+     karena URL googlevideo terikat IP instance penerbit, bukan cookie.
   3. Permintaan polos tanpa cookie dan referer untuk CDN yang justru
      menolak header tersebut.
 
   Parameter disposition menentukan cara peramban memperlakukan berkas:
   - attachment (bawaan): berkas diunduh.
   - inline: berkas dirender sebagai pratinjau di dalam halaman.
+
+  Parameter ext mengizinkan ekstensi berkas hasil disesuaikan format
+  audio sumber (mp3, m4a, atau webm) tanpa transcoding.
 */
 
 const BASE_HEADERS: Record<string, string> = {
@@ -34,6 +40,9 @@ const PLATFORM_HEADERS: Record<string, Record<string, string>> = {
   },
   instagram: {
     "Referer": "https://www.instagram.com/",
+  },
+  youtube: {
+    "Referer": "https://www.youtube.com/",
   },
 };
 
@@ -105,7 +114,8 @@ async function fetchMediaWithFallback(
   targetUrl: string,
   platform: string,
   sourceUrl: string | null,
-  range: string | null
+  range: string | null,
+  itag: string | null
 ): Promise<Response> {
   // Upaya 1: header lengkap dengan cookie tersimpan dari tahap resolve.
   const first = await fetch(targetUrl, {
@@ -113,8 +123,18 @@ async function fetchMediaWithFallback(
   });
   if (isMediaResponse(first.status)) return first;
 
-  // Upaya 2: perbarui sesi dari halaman sumber lalu ulangi.
-  if (sourceUrl) {
+  // Upaya 2: perbarui sesi dari halaman sumber lalu ulangi. Untuk YouTube,
+  // URL media terikat IP instance penerbit sehingga pembaruannya berupa
+  // permintaan URL segar untuk itag yang sama, bukan cookie.
+  if (platform === "youtube" && sourceUrl && itag) {
+    const freshUrl = await refreshYouTubeFormatUrl(sourceUrl, itag);
+    if (freshUrl && freshUrl !== targetUrl) {
+      const refreshed = await fetch(freshUrl, {
+        headers: buildMediaHeaders(platform, null, range, false),
+      });
+      if (isMediaResponse(refreshed.status)) return refreshed;
+    }
+  } else if (sourceUrl) {
     const freshCookie = await refreshSessionCookie(sourceUrl, platform, targetUrl);
     if (freshCookie) {
       const second = await fetch(targetUrl, {
@@ -130,12 +150,25 @@ async function fetchMediaWithFallback(
   });
 }
 
+function pickExtension(contentType: string, requested: string | null): string {
+  if (requested && /^[a-z0-9]{2,4}$/i.test(requested)) {
+    return requested.toLowerCase();
+  }
+  if (contentType.startsWith("video/")) return "mp4";
+  if (contentType.startsWith("audio/mpeg")) return "mp3";
+  if (contentType.startsWith("audio/webm")) return "webm";
+  if (contentType.startsWith("audio/")) return "m4a";
+  return "jpg";
+}
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const targetUrl = searchParams.get("url");
   const platform = searchParams.get("platform") || "naze";
   const type = searchParams.get("type") || "media";
   const sourceUrl = searchParams.get("source");
+  const itag = searchParams.get("itag");
+  const requestedExtension = searchParams.get("ext");
   const disposition =
     searchParams.get("disposition") === "inline" ? "inline" : "attachment";
 
@@ -145,7 +178,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const range = request.headers.get("range");
-    const response = await fetchMediaWithFallback(targetUrl, platform, sourceUrl, range);
+    const response = await fetchMediaWithFallback(targetUrl, platform, sourceUrl, range, itag);
 
     if (!isMediaResponse(response.status)) {
       return new Response(`Failed to fetch source: ${response.status}`, {
@@ -155,7 +188,7 @@ export async function GET(request: NextRequest) {
 
     const contentType =
       response.headers.get("Content-Type") || "application/octet-stream";
-    const extension = contentType.includes("video") ? "mp4" : "jpg";
+    const extension = pickExtension(contentType, requestedExtension);
     const filename = `${platform}-${type}-${Date.now()}.${extension}`;
 
     const responseHeaders = new Headers();
