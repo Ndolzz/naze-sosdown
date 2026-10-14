@@ -180,6 +180,28 @@ function buildPhotoItems(itemStruct: any): ResolvedMediaItem[] {
     .filter((item: ResolvedMediaItem | null): item is ResolvedMediaItem => item !== null);
 }
 
+/*
+  TikTok menyertakan lagu latar sebagai jalur audio mandiri pada
+  itemStruct.music.playUrl. Jalur ini menjadi opsi unduhan MP3 tanpa
+  transcoding; wadahnya mengikuti sumber, umumnya mp3 atau m4a.
+*/
+function buildAudioItem(itemStruct: any): ResolvedMediaItem | null {
+  const playUrl: string | undefined = itemStruct?.music?.playUrl;
+  if (!playUrl) return null;
+
+  const cover: string | null = itemStruct?.music?.coverLarge ?? null;
+  const isMp3 = /\.mp3(\?|$)/i.test(playUrl);
+
+  return {
+    url: playUrl,
+    quality: "audio",
+    label: null,
+    hasWatermark: false,
+    mimeType: isMp3 ? "audio/mpeg" : "audio/mp4",
+    thumbnailUrl: cover,
+  };
+}
+
 export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
   let canonicalUrl: string;
 
@@ -248,13 +270,17 @@ export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
     };
   }
 
+  const audioItem = buildAudioItem(itemStruct);
+
   // Simpan cookie sesi agar route unduh dan pratinjau bisa mengakses CDN
-  // tanpa 403, termasuk untuk URL gambar sampul.
-  const mediaUrls = items.flatMap((item) =>
-    item.thumbnailUrl && item.thumbnailUrl !== item.url
-      ? [item.url, item.thumbnailUrl]
-      : [item.url]
-  );
+  // tanpa 403, termasuk URL gambar sampul dan jalur audio.
+  const mediaUrls = items
+    .flatMap((item) =>
+      item.thumbnailUrl && item.thumbnailUrl !== item.url
+        ? [item.url, item.thumbnailUrl]
+        : [item.url]
+    )
+    .concat(audioItem ? [audioItem.url] : []);
   rememberCookies(mediaUrls, sourceCookie);
 
   return {
@@ -266,6 +292,7 @@ export async function resolveTikTok(rawUrl: string): Promise<ResolverResult> {
       author: itemStruct?.author?.uniqueId ?? null,
       caption: itemStruct?.desc ?? null,
       sourceUrl: canonicalUrl,
+      audioItem,
     },
   };
 }

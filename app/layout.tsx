@@ -18,7 +18,7 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "naze-sosdown",
   description:
-    "Unduh video dan foto dari TikTok dan Instagram tanpa API resmi.",
+    "Unduh video, foto, dan audio dari YouTube, TikTok, dan Instagram tanpa API resmi.",
 };
 
 export default function RootLayout({

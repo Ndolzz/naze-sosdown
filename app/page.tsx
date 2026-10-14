@@ -14,15 +14,19 @@ interface DisplayResult {
   type: MediaKind;
   sourceUrl: string | null;
   items: ResolvedMediaItem[];
+  audioItem: ResolvedMediaItem | null;
 }
 
 /*
   Mengelompokkan item hasil resolver menjadi kartu tampilan. Video dengan
   beberapa varian kualitas (HD/SD) berada dalam satu kartu yang sama sesuai
   status watermarknya, sedangkan foto carousel menjadi kartu terpisah
-  per foto.
+  per foto. Jalur audio mandiri diteruskan ke setiap kartu sebagai opsi
+  unduhan MP3.
 */
 function groupResults(data: ResolvedMedia): DisplayResult[] {
+  const audioItem = data.audioItem ?? null;
+
   if (data.type !== "video") {
     return data.items.map((item) => ({
       platform: data.platform,
@@ -30,6 +34,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       type: data.type,
       sourceUrl: data.sourceUrl ?? null,
       items: [item],
+      audioItem,
     }));
   }
 
@@ -44,6 +49,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       type: "video",
       sourceUrl: data.sourceUrl ?? null,
       items: withoutWatermark,
+      audioItem,
     });
   }
 
@@ -54,6 +60,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
       type: "video",
       sourceUrl: data.sourceUrl ?? null,
       items: withWatermark,
+      audioItem,
     });
   }
 
@@ -72,7 +79,7 @@ export default function Home() {
     const detected = detectPlatform(url);
 
     if (!detected) {
-      setErrorMessage("Tautan tidak dikenali. Gunakan tautan TikTok atau Instagram yang valid.");
+      setErrorMessage("Tautan tidak dikenali. Gunakan tautan YouTube, TikTok, atau Instagram yang valid.");
       setLoading(false);
       return;
     }
@@ -99,13 +106,23 @@ export default function Home() {
   }
 
   function handleDownload(result: DisplayResult, item: ResolvedMediaItem) {
+    const isAudio = item.mimeType.startsWith("audio/");
     const params = new URLSearchParams({
       url: item.url,
       platform: result.platform,
-      type: result.type,
+      type: isAudio ? "audio" : result.type,
     });
     if (result.sourceUrl) {
       params.set("source", result.sourceUrl);
+    }
+    if (item.formatId) {
+      params.set("itag", item.formatId);
+    }
+    if (isAudio) {
+      params.set(
+        "ext",
+        item.mimeType === "audio/mpeg" ? "mp3" : item.mimeType === "audio/webm" ? "webm" : "m4a"
+      );
     }
     window.open("/api/download?" + params.toString(), "_blank");
   }
@@ -116,8 +133,8 @@ export default function Home() {
         <span className={styles.eyebrow + " mono"}>naze-sosdown</span>
         <h1 className={styles.title}>Satu tautan, satu berkas siap unduh.</h1>
         <p className={styles.subtitle}>
-          Tempel tautan video atau foto publik dari TikTok maupun Instagram.
-          Sistem akan mengambil berkas asli tanpa melalui API resmi kedua platform.
+          Tempel tautan video atau foto publik dari YouTube, TikTok, maupun Instagram,
+          lalu pilih format dan resolusi unduhan yang diinginkan.
         </p>
 
         <div className={styles.inputWrap}>
@@ -145,6 +162,7 @@ export default function Home() {
                 type={result.type}
                 sourceUrl={result.sourceUrl}
                 items={result.items}
+                audioItem={result.audioItem}
                 onDownload={(item) => handleDownload(result, item)}
               />
             ))}
