@@ -34,6 +34,18 @@
   max-width: 560px;
 }
 
+.historyLink {
+  display: inline-block;
+  margin-top: var(--space-3);
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.historyLink:hover {
+  color: var(--text-primary);
+}
+
 .errorRow {
   display: flex;
   align-items: center;

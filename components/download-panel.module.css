@@ -4,12 +4,18 @@
   padding: var(--space-12) var(--space-6);
 }
 
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
 .backLink {
   display: inline-block;
   font-size: 12px;
   color: var(--text-secondary);
   text-decoration: none;
-  margin-bottom: var(--space-6);
 }
 
 .backLink:hover {
@@ -40,6 +46,7 @@
 }
 
 .preview {
+  position: relative;
   margin-bottom: var(--space-4);
   border-radius: var(--radius-control);
   overflow: hidden;
@@ -50,6 +57,42 @@
   display: block;
   width: 100%;
   height: auto;
+}
+
+.previewVideo {
+  display: block;
+  width: 100%;
+  height: auto;
+  background-color: #000;
+}
+
+.playButton {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.playIcon {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  pointer-events: none;
+}
+
+.playIcon svg {
+  width: 44px;
+  height: 44px;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.6));
 }
 
 .title {

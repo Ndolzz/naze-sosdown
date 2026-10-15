@@ -7,13 +7,16 @@
   transkode. Karena itu konversi MP3 dilakukan di peramban: audio diambil
   lewat proxy unduhan dengan progres, didekode dengan Web Audio API, lalu
   disandikan ulang dengan lamejs yang dimuat dari CDN saat fitur dipakai.
+  Untuk platform tanpa trek audio terpisah seperti TikTok dan Instagram,
+  trek audio diekstrak dari berkas videonya sendiri lewat jalur yang sama.
   Dengan pendekatan ini bundel utama tetap ringan dan package.json bebas
   dari dependensi baru; bila CDN tidak dapat dijangkau, hanya opsi MP3 yang
   gagal dengan pesan jelas, seluruh fitur lain tetap berfungsi.
 */
 
 const LAMEJS_URL: string = "https://esm.sh/lamejs@1.2.1";
-const MP3_BITRATE = 192;
+const DEFAULT_BITRATE = 192;
+const ALLOWED_BITRATES = [128, 192, 320];
 const BLOCK_SIZE = 1152;
 export const MAX_DURATION_SECONDS = 15 * 60;
 
@@ -22,6 +25,17 @@ export type Mp3Stage = "fetch" | "decode" | "encode";
 export interface Mp3Progress {
   stage: Mp3Stage;
   percent: number | null;
+}
+
+export interface Mp3Metadata {
+  title: string;
+  artist: string | null;
+  cover?: Uint8Array | null;
+}
+
+export interface Mp3ConversionOptions {
+  bitrate: number;
+  metadata: Mp3Metadata | null;
 }
 
 export class Mp3ConversionError extends Error {}
@@ -135,9 +149,115 @@ function toUint8Copy(encoded: Int8Array): Uint8Array {
   return view;
 }
 
+/*
+  Bagian ID3 di bawah menuliskan tag ID3v2.3 sederhana (judul, penulis,
+  sampul depan) langsung di depan berkas MP3. Format ini diterima mayoritas
+  pemutar; ukuran frame memakai bilangan 32-bit biasa sesuai versi 2.3,
+  sedangkan ukuran total tag memakai synchsafe.
+*/
+
+function writeAscii(target: Uint8Array, offset: number, text: string): void {
+  for (let i = 0; i < text.length; i++) {
+    target[offset + i] = text.charCodeAt(i) & 0xff;
+  }
+}
+
+function concatBytes(parts: Uint8Array[]): Uint8Array {
+  const total = parts.reduce((sum, part) => sum + part.length, 0);
+  const merged = new Uint8Array(total);
+  let offset = 0;
+
+  for (const part of parts) {
+    merged.set(part, offset);
+    offset += part.length;
+  }
+
+  return merged;
+}
+
+function frameSizeBytes(size: number): Uint8Array {
+  return new Uint8Array([
+    (size >> 24) & 0xff,
+    (size >> 16) & 0xff,
+    (size >> 8) & 0xff,
+    size & 0xff,
+  ]);
+}
+
+function synchsafeBytes(size: number): Uint8Array {
+  return new Uint8Array([
+    (size >> 21) & 0x7f,
+    (size >> 14) & 0x7f,
+    (size >> 7) & 0x7f,
+    size & 0x7f,
+  ]);
+}
+
+function textFrame(frameId: string, value: string): Uint8Array {
+  const content = new TextEncoder().encode(value);
+  const frame = new Uint8Array(11 + content.length);
+
+  writeAscii(frame, 0, frameId);
+  frame.set(frameSizeBytes(1 + content.length), 4);
+  frame[10] = 0x03; // pengodean teks UTF-8
+  frame.set(content, 11);
+
+  return frame;
+}
+
+function coverFrame(cover: Uint8Array): Uint8Array {
+  const mime = "image/jpeg";
+  const headerLength = 1 + mime.length + 1 + 1 + 1;
+  const frame = new Uint8Array(10 + headerLength + cover.length);
+
+  writeAscii(frame, 0, "APIC");
+  frame.set(frameSizeBytes(headerLength + cover.length), 4);
+
+  let offset = 10;
+  frame[offset] = 0x00; // pengodean teks ISO-8859-1
+  offset += 1;
+  writeAscii(frame, offset, mime);
+  offset += mime.length;
+  frame[offset] = 0x00; // akhir mime
+  offset += 1;
+  frame[offset] = 0x03; // tipe gambar: sampul depan
+  offset += 1;
+  frame[offset] = 0x00; // deskripsi kosong
+  offset += 1;
+  frame.set(cover, offset);
+
+  return frame;
+}
+
+function buildId3Tag(metadata: Mp3Metadata): Uint8Array {
+  const frames: Uint8Array[] = [];
+
+  frames.push(textFrame("TIT2", metadata.title));
+  if (metadata.artist && metadata.artist.length > 0) {
+    frames.push(textFrame("TPE1", metadata.artist));
+  }
+  if (metadata.cover && metadata.cover.length > 0) {
+    frames.push(coverFrame(metadata.cover));
+  }
+
+  if (frames.length === 0) return new Uint8Array(0);
+
+  const body = concatBytes(frames);
+  const header = new Uint8Array(10);
+
+  writeAscii(header, 0, "ID3");
+  header[3] = 0x03; // versi mayor 3 (ID3v2.3)
+  header[4] = 0x00; // revisi
+  header[5] = 0x00; // flags
+  header.set(synchsafeBytes(body.length), 6);
+
+  return concatBytes([header, body]);
+}
+
 export async function convertAudioToMp3(
   audioUrl: string,
   durationSeconds: number | null,
+  options: Mp3ConversionOptions,
   onProgress: (progress: Mp3Progress) => void
 ): Promise<Blob> {
   if (!canConvertToMp3(durationSeconds)) {
@@ -147,6 +267,9 @@ export async function convertAudioToMp3(
   }
 
   const lame = await loadEncoder();
+  const bitrate = ALLOWED_BITRATES.includes(options.bitrate)
+    ? options.bitrate
+    : DEFAULT_BITRATE;
 
   onProgress({ stage: "fetch", percent: null });
   const raw = await fetchAudioBuffer(audioUrl, (percent) =>
@@ -160,7 +283,7 @@ export async function convertAudioToMp3(
 
   let encoder: any;
   try {
-    encoder = new lame.Mp3Encoder(channels, audio.sampleRate, MP3_BITRATE);
+    encoder = new lame.Mp3Encoder(channels, audio.sampleRate, bitrate);
   } catch {
     throw new Mp3ConversionError("Sampling rate audio tidak didukung penyandi MP3.");
   }
@@ -197,5 +320,15 @@ export async function convertAudioToMp3(
   }
 
   onProgress({ stage: "encode", percent: 1 });
+
+  // Tag ID3 ditulis di depan berkas agar pemutar menampilkan judul, penulis,
+  // dan sampul dari berkas MP3 tanpa koneksi ke server.
+  if (options.metadata) {
+    const id3Tag = buildId3Tag(options.metadata);
+    if (id3Tag.length > 0) {
+      parts.unshift(id3Tag);
+    }
+  }
+
   return new Blob(parts, { type: "audio/mpeg" });
 }

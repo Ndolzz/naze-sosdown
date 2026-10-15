@@ -2,16 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { LinkInput } from "@/components/link-input";
 import { ResultCard } from "@/components/result-card";
 import { IconAlert } from "@/components/icons/IconAlert";
 import { detectPlatform } from "@/lib/resolvers/detect-platform";
+import { recordDownloadHistory } from "@/lib/download-history";
 import type { ResolvedMediaItem, Platform, MediaKind, ResolvedMedia, ResolverResult } from "@/lib/resolvers/types";
 import styles from "./page.module.css";
 
 interface DisplayResult {
   platform: Platform;
   author: string | null;
+  caption: string | null;
   type: MediaKind;
   sourceUrl: string | null;
   items: ResolvedMediaItem[];
@@ -28,6 +31,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
     return data.items.map((item) => ({
       platform: data.platform,
       author: data.author,
+      caption: data.caption ?? null,
       type: data.type,
       sourceUrl: data.sourceUrl ?? null,
       items: [item],
@@ -42,6 +46,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
     groups.push({
       platform: data.platform,
       author: data.author,
+      caption: data.caption ?? null,
       type: "video",
       sourceUrl: data.sourceUrl ?? null,
       items: withoutWatermark,
@@ -52,6 +57,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
     groups.push({
       platform: data.platform,
       author: data.author,
+      caption: data.caption ?? null,
       type: "video",
       sourceUrl: data.sourceUrl ?? null,
       items: withWatermark,
@@ -101,9 +107,10 @@ export default function Home() {
   }
 
   function handleDownload(result: DisplayResult, item: ResolvedMediaItem) {
-    // YouTube memiliki pilihan format MP4 atau MP3 yang hanya tersedia pada
-    // halaman unduhan, sehingga kartu YouTube membuka halaman tersebut.
-    if (result.platform === "youtube") {
+    // Seluruh video diarahkan ke halaman unduhan agar pilihan format
+    // MP4 atau MP3 tersedia untuk semua platform. Foto dan carousel
+    // tetap terunduh langsung dari kartu hasil.
+    if (result.type === "video") {
       const target = result.sourceUrl ?? item.url;
       router.push("/download?url=" + encodeURIComponent(target));
       return;
@@ -117,6 +124,14 @@ export default function Home() {
     if (result.sourceUrl) {
       params.set("source", result.sourceUrl);
     }
+
+    recordDownloadHistory({
+      platform: result.platform,
+      title: result.caption ?? result.author ?? "media",
+      format: "media",
+      sourceUrl: result.sourceUrl ?? item.url,
+    });
+
     window.open("/api/download?" + params.toString(), "_blank");
   }
 
@@ -133,6 +148,10 @@ export default function Home() {
         <div className={styles.inputWrap}>
           <LinkInput onSubmit={handleSubmit} loading={loading} />
         </div>
+
+        <Link href="/history" className={styles.historyLink + " mono"}>
+          riwayat unduhan
+        </Link>
 
         {errorMessage ? (
           <div className={styles.errorRow}>

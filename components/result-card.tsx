@@ -64,10 +64,11 @@ export function ResultCard({ platform, author, type, sourceUrl, items, onDownloa
     : null;
   const previewAlt = "Pratinjau dari " + (author ?? "media");
 
-  // YouTube memiliki pilihan format MP4 atau MP3 pada halaman unduhan,
-  // sehingga tombol kartu YouTube membuka halaman tersebut.
+  // Seluruh video memiliki pilihan format MP4 atau MP3 pada halaman unduhan,
+  // sehingga tombol kartu video membuka halaman tersebut. Foto dan
+  // carousel tetap terunduh langsung.
   const downloadLabel =
-    platform === "youtube"
+    type === "video"
       ? "Buka halaman unduh"
       : hasQualityChoice
       ? "Unduh " + selectedLabel.toUpperCase()
