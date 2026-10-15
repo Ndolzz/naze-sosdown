@@ -1,0 +1,203 @@
+.main {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6);
+}
+
+.backLink {
+  display: inline-block;
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  margin-bottom: var(--space-6);
+}
+
+.backLink:hover {
+  color: var(--text-primary);
+}
+
+.status {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-3);
+}
+
+.platform {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: lowercase;
+}
+
+.duration {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.preview {
+  margin-bottom: var(--space-4);
+  border-radius: var(--radius-control);
+  overflow: hidden;
+  background-color: var(--bg-raised-alt);
+}
+
+.previewImage {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.title {
+  font-size: 18px;
+  line-height: 1.35;
+  font-weight: 700;
+  margin: 0 0 var(--space-2) 0;
+}
+
+.author {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.formatToggle,
+.qualityToggle {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.formatButton {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: var(--radius-control);
+  border: 1px solid var(--border-strong);
+  background-color: var(--bg-raised-alt);
+  color: var(--text-secondary);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+}
+
+.formatButton:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--text-primary);
+}
+
+.formatButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.formatButtonActive {
+  border-color: var(--accent);
+  background-color: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.meta {
+  margin: 0 0 var(--space-4) 0;
+}
+
+.metaRow {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.metaRow:last-child {
+  border-bottom: none;
+}
+
+.downloadButton {
+  width: 100%;
+  justify-content: center;
+}
+
+.progressBlock {
+  width: 100%;
+}
+
+.progressTrack {
+  width: 100%;
+  height: 6px;
+  border-radius: var(--radius-chip);
+  background-color: var(--bg-raised-alt);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  background-color: var(--accent);
+  transition: width 0.2s ease;
+}
+
+.progressFillIndeterminate {
+  height: 100%;
+  background-color: var(--accent);
+  animation: progressIndeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes progressIndeterminate {
+  0% {
+    margin-left: -30%;
+  }
+  100% {
+    margin-left: 100%;
+  }
+}
+
+.progressText {
+  margin: var(--space-2) 0 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: var(--space-3) 0 0 0;
+}
+
+.errorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.errorIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}
+
+.errorActions {
+  display: flex;
+  margin-top: var(--space-4);
+}
+
+.successRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  color: var(--success);
+  font-size: 13px;
+}
+
+.successIcon {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+}

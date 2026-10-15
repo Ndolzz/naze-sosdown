@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LinkInput } from "@/components/link-input";
 import { ResultCard } from "@/components/result-card";
 import { IconAlert } from "@/components/icons/IconAlert";
@@ -61,6 +62,7 @@ function groupResults(data: ResolvedMedia): DisplayResult[] {
 }
 
 export default function Home() {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [results, setResults] = useState<DisplayResult[]>([]);
@@ -72,7 +74,7 @@ export default function Home() {
     const detected = detectPlatform(url);
 
     if (!detected) {
-      setErrorMessage("Tautan tidak dikenali. Gunakan tautan TikTok atau Instagram yang valid.");
+      setErrorMessage("Tautan tidak dikenali. Gunakan tautan TikTok, Instagram, atau YouTube yang valid.");
       setLoading(false);
       return;
     }
@@ -99,6 +101,14 @@ export default function Home() {
   }
 
   function handleDownload(result: DisplayResult, item: ResolvedMediaItem) {
+    // YouTube memiliki pilihan format MP4 atau MP3 yang hanya tersedia pada
+    // halaman unduhan, sehingga kartu YouTube membuka halaman tersebut.
+    if (result.platform === "youtube") {
+      const target = result.sourceUrl ?? item.url;
+      router.push("/download?url=" + encodeURIComponent(target));
+      return;
+    }
+
     const params = new URLSearchParams({
       url: item.url,
       platform: result.platform,
@@ -116,8 +126,8 @@ export default function Home() {
         <span className={styles.eyebrow + " mono"}>naze-sosdown</span>
         <h1 className={styles.title}>Satu tautan, satu berkas siap unduh.</h1>
         <p className={styles.subtitle}>
-          Tempel tautan video atau foto publik dari TikTok maupun Instagram.
-          Sistem akan mengambil berkas asli tanpa melalui API resmi kedua platform.
+          Tempel tautan video atau foto publik dari TikTok, Instagram, maupun YouTube.
+          Sistem akan mengambil berkas asli tanpa melalui API resmi platform.
         </p>
 
         <div className={styles.inputWrap}>

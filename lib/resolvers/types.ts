@@ -1,4 +1,4 @@
-export type Platform = "tiktok" | "instagram";
+export type Platform = "tiktok" | "instagram" | "youtube";
 
 export type MediaKind = "video" | "photo" | "carousel";
 
@@ -31,6 +31,14 @@ export interface ResolvedMedia {
    * permintaan dengan 403.
    */
   sourceUrl?: string | null;
+  /**
+   * Item trek audio terpisah untuk platform yang menyediakannya, misalnya
+   * YouTube. Null bila platform tidak menyediakan trek audio terpisah,
+   * sehingga bidang ini opsional bagi konsumen API yang sudah ada.
+   */
+  audio?: ResolvedMediaItem | null;
+  /** Durasi konten dalam detik. Null bila tidak diketahui. */
+  durationSeconds?: number | null;
 }
 
 export interface ResolveError {

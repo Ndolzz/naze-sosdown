@@ -7,18 +7,26 @@ import { extractResponseCookie, getCookieFor, rememberCookies } from "@/lib/medi
   Media di CDN TikTok/Instagram kadang menolak akses dari IP server dengan
   403 Forbidden. Penyebab paling umum: cookie sesi dari tahap resolve tidak
   tersedia pada instance serverless yang menangani permintaan ini (memori
-  antar instance tidak dibagi), atau cookie yang tersimpan sudah
-  kedaluwarsa. Route ini mengambil berkas dengan tiga upaya berjenjang:
+  antar instance tidak dibagi), cookie tersimpan sudah kedaluwarsa, atau
+  CDN menolak permintaan pertama yang membawa cookie sesi yang baru diambil.
+  Gejala terakhir inilah yang membuat unduhan pertama setelah halaman dibuka
+  gagal padahal percobaan ulang setelah refresh berhasil.
+
+  Route ini karena itu menjalankan tiga upaya berjenjang dalam beberapa
+  ronde dengan jeda singkat:
 
   1. Header lengkap plus cookie tersimpan dari tahap resolve.
   2. Cookie sesi baru yang diambil langsung dari halaman sumber (parameter
-     source), lalu ulangi permintaan.
+     source), lalu ulangi permintaan. Cookie baru juga disimpan ke cache
+     sehingga ronde berikutnya langsung memakainya pada upaya pertama.
   3. Permintaan polos tanpa cookie dan referer untuk CDN yang justru
      menolak header tersebut.
 
   Parameter disposition menentukan cara peramban memperlakukan berkas:
   - attachment (bawaan): berkas diunduh.
   - inline: berkas dirender sebagai pratinjau di dalam halaman.
+  Parameter name (opsional) menyetel nama dasar berkas unduhan; nilainya
+  disaring dari karakter yang tidak aman untuk header.
 */
 
 const BASE_HEADERS: Record<string, string> = {
@@ -36,6 +44,13 @@ const PLATFORM_HEADERS: Record<string, Record<string, string>> = {
     "Referer": "https://www.instagram.com/",
   },
 };
+
+const RETRY_ROUNDS = 2;
+const RETRY_DELAY_MS = 600;
+
+function delay(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
 
 function isMediaResponse(status: number): boolean {
   return (status >= 200 && status < 300) || status === 206;
@@ -107,27 +122,80 @@ async function fetchMediaWithFallback(
   sourceUrl: string | null,
   range: string | null
 ): Promise<Response> {
-  // Upaya 1: header lengkap dengan cookie tersimpan dari tahap resolve.
-  const first = await fetch(targetUrl, {
-    headers: buildMediaHeaders(platform, getCookieFor(targetUrl), range, false),
-  });
-  if (isMediaResponse(first.status)) return first;
+  let lastResponse: Response | null = null;
 
-  // Upaya 2: perbarui sesi dari halaman sumber lalu ulangi.
-  if (sourceUrl) {
-    const freshCookie = await refreshSessionCookie(sourceUrl, platform, targetUrl);
-    if (freshCookie) {
-      const second = await fetch(targetUrl, {
-        headers: buildMediaHeaders(platform, freshCookie, range, false),
-      });
-      if (isMediaResponse(second.status)) return second;
+  for (let round = 0; round < RETRY_ROUNDS; round++) {
+    if (round > 0) {
+      await delay(RETRY_DELAY_MS);
     }
+
+    // Upaya 1: header lengkap dengan cookie tersimpan dari tahap resolve.
+    const first = await fetch(targetUrl, {
+      headers: buildMediaHeaders(platform, getCookieFor(targetUrl), range, false),
+    });
+    lastResponse = first;
+    if (isMediaResponse(first.status)) return first;
+
+    // Upaya 2: perbarui sesi dari halaman sumber lalu ulangi.
+    if (sourceUrl) {
+      const freshCookie = await refreshSessionCookie(sourceUrl, platform, targetUrl);
+      if (freshCookie) {
+        const second = await fetch(targetUrl, {
+          headers: buildMediaHeaders(platform, freshCookie, range, false),
+        });
+        lastResponse = second;
+        if (isMediaResponse(second.status)) return second;
+      }
+    }
+
+    // Upaya 3: permintaan polos tanpa cookie dan referer.
+    const bare = await fetch(targetUrl, {
+      headers: buildMediaHeaders(platform, null, range, true),
+    });
+    lastResponse = bare;
+    if (isMediaResponse(bare.status)) return bare;
   }
 
-  // Upaya 3: permintaan polos tanpa cookie dan referer.
-  return fetch(targetUrl, {
-    headers: buildMediaHeaders(platform, null, range, true),
-  });
+  if (lastResponse) {
+    return lastResponse;
+  }
+
+  return new Response("Failed to fetch source", { status: 502 });
+}
+
+function extensionFor(contentType: string): string {
+  if (contentType.startsWith("audio/")) {
+    if (contentType.includes("mp4") || contentType.includes("m4a") || contentType.includes("aac")) {
+      return "m4a";
+    }
+    if (contentType.includes("webm") || contentType.includes("opus")) {
+      return "weba";
+    }
+    return "bin";
+  }
+
+  if (contentType.startsWith("video/")) {
+    return contentType.includes("webm") ? "webm" : "mp4";
+  }
+
+  if (contentType.startsWith("image/")) {
+    return "jpg";
+  }
+
+  return "bin";
+}
+
+// Nama berkas dari klien disaring: hanya huruf, angka, spasi, titik, strip,
+// dan garis bawah, maksimal 80 karakter, agar aman sebagai header.
+function sanitizeName(rawName: string | null): string | null {
+  if (!rawName) return null;
+
+  const cleaned = rawName
+    .replace(/[^\w\-. ]+/g, "")
+    .trim()
+    .slice(0, 80);
+
+  return cleaned.length > 0 ? cleaned : null;
 }
 
 export async function GET(request: NextRequest) {
@@ -136,6 +204,7 @@ export async function GET(request: NextRequest) {
   const platform = searchParams.get("platform") || "naze";
   const type = searchParams.get("type") || "media";
   const sourceUrl = searchParams.get("source");
+  const name = searchParams.get("name");
   const disposition =
     searchParams.get("disposition") === "inline" ? "inline" : "attachment";
 
@@ -148,21 +217,24 @@ export async function GET(request: NextRequest) {
     const response = await fetchMediaWithFallback(targetUrl, platform, sourceUrl, range);
 
     if (!isMediaResponse(response.status)) {
-      return new Response(`Failed to fetch source: ${response.status}`, {
+      return new Response("Failed to fetch source: " + response.status, {
         status: response.status,
       });
     }
 
     const contentType =
       response.headers.get("Content-Type") || "application/octet-stream";
-    const extension = contentType.includes("video") ? "mp4" : "jpg";
-    const filename = `${platform}-${type}-${Date.now()}.${extension}`;
+    const extension = extensionFor(contentType);
+    const safeName = sanitizeName(name);
+    const filename = safeName
+      ? safeName + "." + extension
+      : platform + "-" + type + "-" + Date.now() + "." + extension;
 
     const responseHeaders = new Headers();
     responseHeaders.set("Content-Type", contentType);
     responseHeaders.set(
       "Content-Disposition",
-      `${disposition}; filename="${filename}"`
+      disposition + '; filename="' + filename + '"'
     );
 
     if (disposition === "inline") {

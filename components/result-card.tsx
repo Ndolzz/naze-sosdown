@@ -64,6 +64,15 @@ export function ResultCard({ platform, author, type, sourceUrl, items, onDownloa
     : null;
   const previewAlt = "Pratinjau dari " + (author ?? "media");
 
+  // YouTube memiliki pilihan format MP4 atau MP3 pada halaman unduhan,
+  // sehingga tombol kartu YouTube membuka halaman tersebut.
+  const downloadLabel =
+    platform === "youtube"
+      ? "Buka halaman unduh"
+      : hasQualityChoice
+      ? "Unduh " + selectedLabel.toUpperCase()
+      : "Unduh berkas";
+
   function qualityClass(label: QualityLabel): string {
     const base = styles.qualityButton + " mono";
     return label === selectedLabel
@@ -141,7 +150,7 @@ export function ResultCard({ platform, author, type, sourceUrl, items, onDownloa
         onClick={() => onDownload(selectedItem)}
         className={styles.downloadButton}
       >
-        {hasQualityChoice ? "Unduh " + selectedLabel.toUpperCase() : "Unduh berkas"}
+        {downloadLabel}
       </Button>
     </Card>
   );
